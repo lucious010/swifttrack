@@ -170,7 +170,22 @@ body{font-family:'Inter',sans-serif;background:#F0F4F8;color:#1E293B;min-height:
   .deliveries-grid{grid-template-columns:1fr}
   .meta-row{grid-template-columns:1fr}
 }
+ 
+.save-bar{position:fixed;bottom:0;left:0;right:0;z-index:500;background:#fff;border-top:1px solid #E2E8F0;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -4px 20px rgba(0,0,0,.08);transform:translateY(100%);transition:transform .3s ease}
+.save-bar.visible{transform:translateY(0)}
+.save-bar-left{display:flex;align-items:center;gap:10px}
+.save-bar-dot{width:8px;height:8px;border-radius:50%;background:#F97316;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.save-bar-text{font-size:13px;color:#475569;font-weight:500}
+.save-all-btn{background:#1B4FE8;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer}
+.save-all-btn:hover{background:#1340C0}
+.discard-btn{background:none;color:#94A3B8;border:1px solid #E2E8F0;border-radius:8px;padding:10px 18px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer}
+.discard-btn:hover{border-color:#CBD5E1;color:#475569}
+.saved-toast{position:fixed;bottom:80px;right:24px;background:#10B981;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:600;opacity:0;transition:opacity .3s ease;pointer-events:none}
+.saved-toast.show{opacity:1}
 </style>
+</head>
+ 
 </head>
 <body>
  
@@ -197,7 +212,7 @@ body{font-family:'Inter',sans-serif;background:#F0F4F8;color:#1E293B;min-height:
         <input class="form-input" type="password" id="login-pass" placeholder="Enter password"/>
       </div>
       <div class="err-msg" id="login-error" style="display:none">Incorrect username or password.</div>
-      <button class="login-btn" id="btn-login">Sign In to Dashboard</button>
+      <div id="login-err" style="display:none;color:#EF4444;font-size:12px;margin-bottom:10px;text-align:center;background:#FEF2F2;padding:8px;border-radius:6px"></div><button class="login-btn" id="btn-login">Sign In to Dashboard</button>
     </div>
   </div>
 </div>
@@ -270,118 +285,129 @@ body{font-family:'Inter',sans-serif;background:#F0F4F8;color:#1E293B;min-height:
   </div>
 </div>
  
+ 
+<!-- SAVE BAR -->
+<div class="save-bar" id="save-bar">
+  <div class="save-bar-left">
+    <div class="save-bar-dot"></div>
+    <div class="save-bar-text">You have unsaved changes</div>
+  </div>
+  <div style="display:flex;gap:10px">
+    <button class="discard-btn" id="btn-discard">Discard</button>
+    <button class="save-all-btn" id="btn-save-all">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;margin-right:6px;vertical-align:middle"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save All Changes
+    </button>
+  </div>
+</div>
+<div class="saved-toast" id="saved-toast">✓ All changes saved</div>
+ 
 <script>
-var ADMIN_USER = 'admin';
-var ADMIN_PASS = 'keZSi0R&nvCaouL#';
-var isLoggedIn = false;
+document.addEventListener('DOMContentLoaded', function(){
+// ── DATA ──────────────────────────────────────────────────────────────
 var pkgCounter = 9905;
- 
 var STEPS = [
-  {name:'Picked Up',        loc:'Origin Facility'},
-  {name:'In Transit',       loc:'Regional Hub'},
-  {name:'Processing',       loc:'Distribution Center'},
-  {name:'Out for Delivery', loc:'Local Facility'},
-  {name:'Delivered',        loc:'Destination'}
+  { name:'Picked Up',        loc:'Origin Facility' },
+  { name:'In Transit',       loc:'Regional Hub' },
+  { name:'Processing',       loc:'Distribution Center' },
+  { name:'Out for Delivery', loc:'Local Facility' },
+  { name:'Delivered',        loc:'Destination' }
 ];
- 
-function bd(n) { var d = new Date('2026-04-13T13:13:17'); d.setDate(d.getDate() - (n||0)); return d; }
-function fmtShort(d)  { return d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); }
-function fmtAdmin(d)  { return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ', ' + d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
-function fmtFull(d)   { return d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}) + ', ' + d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
-function getStatus(s) { return s===5?'delivered':s>=2?'transit':'pending'; }
- 
 var CHECK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
 var PIN   = '<svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>';
  
+function bd(n){ var d=new Date('2026-04-13T13:13:17'); d.setDate(d.getDate()-n); return d; }
+ 
 var deliveries = [
-  {id:'SWIFT-9901', desc:'Electronics - Laptop Computer (Dell XPS 15) with accessories and power adapter', stop:3, editing:false, shipped:bd(3), updated:new Date()},
-  {id:'SWIFT-9902', desc:'Fragile - Ceramic vase set (3 pieces) - Handle with care',                       stop:5, editing:false, shipped:bd(4), updated:new Date(Date.now()-86400000)},
-  {id:'SWIFT-9903', desc:'Documents - Legal papers and contracts (confidential)',                           stop:2, editing:false, shipped:bd(2), updated:new Date()},
-  {id:'SWIFT-9904', desc:'Fashion - Designer handbag (Louis Vuitton) with authentication certificate',     stop:2, editing:false, shipped:bd(1), updated:new Date()}
+  { id:'SWIFT-9901', desc:'Electronics - Laptop Computer (Dell XPS 15) with accessories and power adapter', stop:3, shipped:bd(3), updated:new Date() },
+  { id:'SWIFT-9902', desc:'Fragile - Ceramic vase set (3 pieces) - Handle with care',                       stop:5, shipped:bd(4), updated:new Date(Date.now()-86400000) },
+  { id:'SWIFT-9903', desc:'Documents - Legal papers and contracts (confidential)',                           stop:2, shipped:bd(2), updated:new Date() },
+  { id:'SWIFT-9904', desc:'Fashion - Designer handbag (Louis Vuitton) with authentication certificate',     stop:2, shipped:bd(1), updated:new Date() }
 ];
  
-// ── NAV ──────────────────────────────────────────────────────────────
-function renderNav() {
+// ── CHANGE TRACKING ───────────────────────────────────────────────────
+var pendingChanges = {};
+var savedSnapshot  = deliveries.map(function(d){ return {id:d.id, desc:d.desc, stop:d.stop}; });
+ 
+function markChanged() {
+  pendingChanges['dirty'] = true;
+  document.getElementById('save-bar').classList.add('visible');
+}
+function hideSaveBar() {
+  document.getElementById('save-bar').classList.remove('visible');
+}
+function showToast() {
+  var t = document.getElementById('saved-toast');
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+ 
+// ── HELPERS ───────────────────────────────────────────────────────────
+function fmtAdmin(d){ return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+new Date(d).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+function fmtShort(d){ return new Date(d).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); }
+function fmtFull(d){ return new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'})+', '+new Date(d).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+function mkBtn(cls,html){ var b=document.createElement('button'); b.className='nav-btn '+cls; b.innerHTML=html; return b; }
+ 
+// ── AUTH ──────────────────────────────────────────────────────────────
+var isLoggedIn = false;
+ 
+// ── NAV ───────────────────────────────────────────────────────────────
+function buildNav() {
   var nr = document.getElementById('nav-right');
   nr.innerHTML = '';
   if (isLoggedIn) {
-    var badge = document.createElement('span');
-    badge.className = 'admin-badge';
-    badge.textContent = 'Admin';
-    nr.appendChild(badge);
+    var badge = document.createElement('div'); badge.className='admin-badge';
+    badge.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Admin';
     var tb = mkBtn('ghost','<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Track Package');
     tb.addEventListener('click', function(){ showPage('track'); });
-    nr.appendChild(tb);
     var lb = mkBtn('danger','<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Logout');
     lb.addEventListener('click', function(){ isLoggedIn=false; showPage('track'); });
-    nr.appendChild(lb);
+    nr.appendChild(badge); nr.appendChild(tb); nr.appendChild(lb);
   } else {
     var tb2 = mkBtn('primary','<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Track Package');
     tb2.addEventListener('click', function(){ showPage('track'); });
-    nr.appendChild(tb2);
     var lb2 = mkBtn('ghost','<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Login as Admin');
     lb2.addEventListener('click', function(){ showPage('login'); });
-    nr.appendChild(lb2);
+    nr.appendChild(tb2); nr.appendChild(lb2);
   }
 }
-function mkBtn(cls, html) {
-  var b = document.createElement('button');
-  b.className = 'nav-btn ' + cls;
-  b.innerHTML = html;
-  return b;
-}
+ 
+// ── PAGE SWITCHER ─────────────────────────────────────────────────────
 function showPage(p) {
-  if (p==='admin' && !isLoggedIn) { showPage('login'); return; }
   document.querySelectorAll('.page').forEach(function(el){ el.classList.remove('active'); });
   document.getElementById('page-'+p).classList.add('active');
-  renderNav();
+  buildNav();
   if (p==='admin') renderAdmin();
 }
  
-// ── LOGIN ────────────────────────────────────────────────────────────
+// ── LOGIN ─────────────────────────────────────────────────────────────
 function doLogin() {
   var u = document.getElementById('login-user').value.trim();
-  var p = document.getElementById('login-pass').value;
-  var err = document.getElementById('login-error');
-  if (u===ADMIN_USER && p===ADMIN_PASS) {
+  var pw = document.getElementById('login-pass').value;
+  var err = document.getElementById('login-err');
+  if (u==='admin' && pw==='keZSi0R&nvCaouL#') {
     isLoggedIn=true; err.style.display='none';
-    document.getElementById('login-user').value='';
     document.getElementById('login-pass').value='';
     showPage('admin');
   } else {
+    err.textContent='Incorrect username or password.';
     err.style.display='block';
     document.getElementById('login-pass').value='';
-    ['login-user','login-pass'].forEach(function(id){
-      var el=document.getElementById(id);
-      el.classList.add('err');
-      setTimeout(function(){ el.classList.remove('err'); },1500);
-    });
   }
 }
 document.getElementById('btn-login').addEventListener('click', doLogin);
 document.getElementById('login-pass').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+document.getElementById('login-user').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
  
-// ── ADMIN ────────────────────────────────────────────────────────────
-function pillEl(stop) {
-  var s = document.createElement('span');
-  s.className = 'pill ' + (stop===5?'delivered':'transit');
-  if (stop===5) {
-    s.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px"><polyline points="20 6 9 17 4 12"/></svg>Delivered';
-  } else {
-    s.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>In Transit';
-  }
-  return s;
-}
- 
+// ── ADMIN RENDER ──────────────────────────────────────────────────────
 function renderAdmin() {
-  var transit=0, delivered=0, pending=0;
+  var total=deliveries.length, transit=0, delivered=0, pending=0;
   deliveries.forEach(function(d){
-    var s=getStatus(d.stop);
-    if(s==='transit') transit++;
-    if(s==='delivered') delivered++;
-    if(s==='pending') pending++;
+    if(d.stop===5) delivered++;
+    else if(d.stop>=2) transit++;
+    else pending++;
   });
-  document.getElementById('s-total').textContent=deliveries.length;
+  document.getElementById('s-total').textContent=total;
   document.getElementById('s-transit').textContent=transit;
   document.getElementById('s-delivered').textContent=delivered;
   document.getElementById('s-pending').textContent=pending;
@@ -389,121 +415,99 @@ function renderAdmin() {
  
   var grid=document.getElementById('admin-grid');
   grid.innerHTML='';
- 
-  deliveries.forEach(function(d, i) {
+  deliveries.forEach(function(d, i){
     var card=document.createElement('div'); card.className='d-card';
  
     // Header
-    var hdr=document.createElement('div'); hdr.className='d-header';
+    var header=document.createElement('div'); header.className='d-header';
     var idRow=document.createElement('div'); idRow.className='d-id-row';
     idRow.innerHTML='<div class="d-id-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1B4FE8" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><div><div class="d-tracking">'+d.id+'</div><div class="d-updated">Last updated: '+fmtAdmin(d.updated)+'</div></div>';
-    hdr.appendChild(idRow);
- 
-    var dRight=document.createElement('div'); dRight.className='d-right';
-    dRight.appendChild(pillEl(d.stop));
- 
-    // DELETE BUTTON
-    var delBtn=document.createElement('button');
-    delBtn.className='del-btn';
-    delBtn.title='Delete package';
+    var dright=document.createElement('div'); dright.className='d-right';
+    var s=document.createElement('span'); s.className='pill';
+    if(d.stop===5){ s.classList.add('delivered'); s.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px"><polyline points="20 6 9 17 4 12"/></svg>Delivered'; }
+    else { s.classList.add('transit'); s.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>In Transit'; }
+    var delBtn=document.createElement('button'); delBtn.className='del-btn';
     delBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
+    var delClicks=0, delTimer=null;
     (function(idx){
-      delBtn.addEventListener('click', function(e){
-        e.stopPropagation();
-        var id = deliveries[idx].id;
-        if(delBtn.dataset.confirm === '1') {
-          deliveries.splice(idx,1);
-          renderAdmin();
+      delBtn.addEventListener('click',function(){
+        if(delClicks===0){
+          delClicks=1;
+          delBtn.style.background='#EF4444'; delBtn.style.color='#fff'; delBtn.style.borderColor='#EF4444';
+          delBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+          delTimer=setTimeout(function(){
+            delClicks=0;
+            delBtn.style.background='#FEF2F2'; delBtn.style.color='#EF4444'; delBtn.style.borderColor='#FECACA';
+            delBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
+          },3000);
         } else {
-          delBtn.dataset.confirm = '1';
-          delBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
-          delBtn.style.background = '#EF4444';
-          delBtn.style.color = '#fff';
-          delBtn.style.border = '1px solid #EF4444';
-          delBtn.title = 'Click again to confirm delete';
-          setTimeout(function(){
-            if(delBtn.dataset.confirm === '1') {
-              delBtn.dataset.confirm = '0';
-              delBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
-              delBtn.style.background = '#FEF2F2';
-              delBtn.style.color = '#EF4444';
-              delBtn.style.border = '1px solid #FECACA';
-              delBtn.title = 'Delete package';
-            }
-          }, 3000);
+          clearTimeout(delTimer); delClicks=0;
+          deliveries.splice(idx,1);
+          markChanged();
+          renderAdmin();
         }
       });
     })(i);
-    dRight.appendChild(delBtn);
-    hdr.appendChild(dRight);
-    card.appendChild(hdr);
+    dright.appendChild(s); dright.appendChild(delBtn);
+    header.appendChild(idRow); header.appendChild(dright);
  
     // Body
     var body=document.createElement('div'); body.className='d-body';
- 
-    // Description
     var fr=document.createElement('div'); fr.className='field-row';
-    var lbl=document.createElement('div'); lbl.className='field-lbl'; lbl.textContent='Item Description';
-    fr.appendChild(lbl);
-    var ta=document.createElement('textarea'); ta.className='desc-ta'; ta.value=d.desc; ta.disabled=!d.editing;
- 
+    var fl=document.createElement('div'); fl.className='field-lbl'; fl.textContent='Item Description';
+    var ta=document.createElement('textarea'); ta.className='desc-ta'; ta.value=d.desc; ta.disabled=true;
     if(d.editing){
-      var sv=document.createElement('button'); sv.className='save-btn'; sv.textContent='✓ Save';
-      (function(idx,textarea){
-        sv.addEventListener('click',function(){
-          deliveries[idx].desc=textarea.value;
-          deliveries[idx].editing=false;
-          deliveries[idx].updated=new Date();
-          renderAdmin();
-        });
-      })(i,ta);
-      fr.appendChild(sv);
+      ta.disabled=false; ta.style.borderColor='#1B4FE8'; ta.style.background='#fff';
+      var eb=document.createElement('button'); eb.className='save-btn'; eb.textContent='✓ Save';
+      (function(idx){ eb.addEventListener('click',function(){
+        deliveries[idx].desc=ta.value; deliveries[idx].editing=false; deliveries[idx].updated=new Date();
+        markChanged();
+        renderAdmin();
+      }); })(i);
+      fr.appendChild(fl); fr.appendChild(eb);
     } else {
       var eb=document.createElement('button'); eb.className='edit-btn'; eb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit';
       (function(idx){ eb.addEventListener('click',function(){ deliveries[idx].editing=true; renderAdmin(); }); })(i);
-      fr.appendChild(eb);
+      fr.appendChild(fl); fr.appendChild(eb);
     }
     body.appendChild(fr);
     body.appendChild(ta);
  
-    // Status
+    // Status / stop nav
     var sr=document.createElement('div'); sr.className='status-row';
     var sl=document.createElement('div'); sl.className='status-lbl'; sl.textContent='Status Update';
     sr.appendChild(sl);
     var sn=document.createElement('div'); sn.className='stop-nav';
- 
     var pb=document.createElement('button'); pb.className='stop-btn';
     pb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>';
-    if(d.stop<=1) pb.setAttribute('disabled','');
-    (function(idx){ pb.addEventListener('click',function(){ deliveries[idx].stop=Math.max(1,deliveries[idx].stop-1); deliveries[idx].updated=new Date(); renderAdmin(); }); })(i);
- 
+    if(d.stop<=1) pb.disabled=true;
+    (function(idx){ pb.addEventListener('click',function(){ deliveries[idx].stop=Math.max(1,deliveries[idx].stop-1); deliveries[idx].updated=new Date(); markChanged(); renderAdmin(); }); })(i);
     var st=document.createElement('div'); st.className='stop-text'; st.textContent='Stop '+d.stop+'/5';
- 
     var nb=document.createElement('button'); nb.className='stop-btn';
     nb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>';
-    if(d.stop>=5) nb.setAttribute('disabled','');
-    (function(idx){ nb.addEventListener('click',function(){ deliveries[idx].stop=Math.min(5,deliveries[idx].stop+1); deliveries[idx].updated=new Date(); renderAdmin(); }); })(i);
- 
+    if(d.stop>=5) nb.disabled=true;
+    (function(idx){ nb.addEventListener('click',function(){ deliveries[idx].stop=Math.min(5,deliveries[idx].stop+1); deliveries[idx].updated=new Date(); markChanged(); renderAdmin(); }); })(i);
     sn.appendChild(pb); sn.appendChild(st); sn.appendChild(nb);
     sr.appendChild(sn);
     body.appendChild(sr);
  
     // Stepper
     var stepper=document.createElement('div'); stepper.className='h-stepper';
-    STEPS.forEach(function(s,si){
+    STEPS.forEach(function(step,si){
       var state=si+1<d.stop?'done':si+1===d.stop?'active':'';
       var dot=si+1<d.stop?CHECK:si+1===d.stop?PIN:(si+1).toString();
       var item=document.createElement('div'); item.className='hs-item'+(state?' '+state:'');
-      item.innerHTML='<div class="hs-dot">'+dot+'</div><div class="hs-name">'+s.name+'</div><div class="hs-loc">'+s.loc+'</div>';
+      item.innerHTML='<div class="hs-dot">'+dot+'</div><div class="hs-name">'+step.name+'</div><div class="hs-loc">'+step.loc+'</div>';
       stepper.appendChild(item);
     });
     body.appendChild(stepper);
+    card.appendChild(header);
     card.appendChild(body);
     grid.appendChild(card);
   });
 }
  
-// ── MODAL ────────────────────────────────────────────────────────────
+// ── MODAL ─────────────────────────────────────────────────────────────
 document.getElementById('btn-open-modal').addEventListener('click', function(){
   document.getElementById('new-id').value='SWIFT-'+pkgCounter;
   document.getElementById('new-desc').value='';
@@ -523,10 +527,11 @@ document.getElementById('btn-modal-create').addEventListener('click', function()
   deliveries.unshift({id:id,desc:desc,stop:stop,editing:false,shipped:new Date(),updated:new Date()});
   pkgCounter++;
   document.getElementById('modal-overlay').classList.add('hidden');
+  markChanged();
   renderAdmin();
 });
  
-// ── TRACK ────────────────────────────────────────────────────────────
+// ── TRACK ─────────────────────────────────────────────────────────────
 function trackPkg(){
   var raw=document.getElementById('track-input').value.trim().toUpperCase();
   var query=raw.startsWith('SWIFT-')?raw:'SWIFT-'+raw;
@@ -550,7 +555,30 @@ function trackPkg(){
 document.getElementById('btn-track').addEventListener('click', trackPkg);
 document.getElementById('track-input').addEventListener('keydown', function(e){ if(e.key==='Enter') trackPkg(); });
  
+// ── SAVE BAR BUTTONS ──────────────────────────────────────────────────
+document.getElementById('btn-save-all').addEventListener('click', function(){
+  pendingChanges = {};
+  savedSnapshot = deliveries.map(function(d){ return {id:d.id, desc:d.desc, stop:d.stop}; });
+  hideSaveBar();
+  showToast();
+});
+ 
+document.getElementById('btn-discard').addEventListener('click', function(){
+  // Revert to last saved snapshot
+  deliveries = deliveries.filter(function(d){
+    return savedSnapshot.find(function(s){ return s.id===d.id; });
+  }).map(function(d){
+    var snap = savedSnapshot.find(function(s){ return s.id===d.id; });
+    if(snap){ d.desc=snap.desc; d.stop=snap.stop; }
+    return d;
+  });
+  pendingChanges = {};
+  hideSaveBar();
+  renderAdmin();
+});
+ 
 showPage('track');
+}); // end DOMContentLoaded
 </script>
 </body>
 </html>
