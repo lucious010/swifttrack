@@ -266,7 +266,7 @@ body{font-family:'Inter',sans-serif;background:#F0F4F8;color:#1E293B;min-height:
   <div class="modal">
     <div class="modal-title">Create New Package</div>
     <div class="modal-sub">Fill in the details to add a new delivery.</div>
-    <div class="form-group"><label class="form-label">Tracking ID</label><input class="form-input" type="text" id="new-id" placeholder="e.g. SWIFT-9905"/></div>
+    <div class="form-group"><label class="form-label">Tracking ID</label><input class="form-input" type="text" id="new-id" placeholder="e.g. PACKAGE-9905"/></div>
     <div class="form-group"><label class="form-label">Item Description</label><textarea class="form-input" id="new-desc" rows="3" style="resize:none;height:80px" placeholder="Describe the package contents..."></textarea></div>
     <div class="form-group"><label class="form-label">Initial Stop</label>
       <select class="form-input" id="new-stop">
@@ -319,15 +319,15 @@ var PIN   = '<svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d
 function bd(n){ var d=new Date('2026-04-13T13:13:17'); d.setDate(d.getDate()-n); return d; }
  
 var deliveries = [
-  { id:'SWIFT-9901', desc:'Electronics - Laptop Computer (Dell XPS 15) with accessories and power adapter', stop:3, shipped:bd(3), updated:new Date() },
-  { id:'SWIFT-9902', desc:'Fragile - Ceramic vase set (3 pieces) - Handle with care',                       stop:5, shipped:bd(4), updated:new Date(Date.now()-86400000) },
-  { id:'SWIFT-9903', desc:'Documents - Legal papers and contracts (confidential)',                           stop:2, shipped:bd(2), updated:new Date() },
-  { id:'SWIFT-9904', desc:'Fashion - Designer handbag (Louis Vuitton) with authentication certificate',     stop:2, shipped:bd(1), updated:new Date() }
+  { id:'PACKAGE-9901', desc:'Coachella Tickets', stop:3, shipped:bd(3), updated:new Date() },
+  { id:'PACKAGE-9902', desc:'Coachella Tickets',                       stop:5, shipped:bd(4), updated:new Date(Date.now()-86400000) },
+  { id:'PACKAGE-9903', desc:'Coachella Tickets',                           stop:2, shipped:bd(2), updated:new Date() },
+  { id:'PACKAGE-9904', desc:'Coachella Tickets',     stop:2, shipped:bd(1), updated:new Date() }
 ];
  
 // ── CHANGE TRACKING ───────────────────────────────────────────────────
 var pendingChanges = {};
-var savedSnapshot  = deliveries.map(function(d){ return {id:d.id, desc:d.desc, stop:d.stop}; });
+var savedSnapshot  = deliveries.map(function(d){ return {id:d.id, desc:d.desc, stop:d.stop, express:!!d.express, shipped:d.shipped, editing:false}; });
  
 function markChanged() {
   pendingChanges['dirty'] = true;
@@ -421,7 +421,7 @@ function renderAdmin() {
     // Header
     var header=document.createElement('div'); header.className='d-header';
     var idRow=document.createElement('div'); idRow.className='d-id-row';
-    idRow.innerHTML='<div class="d-id-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1B4FE8" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><div><div class="d-tracking">'+d.id+'</div><div class="d-updated">Last updated: '+fmtAdmin(d.updated)+'</div></div>';
+    idRow.innerHTML='<div class="d-id-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1B4FE8" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><div><div class="d-tracking">'+d.id+'</div></div>';
     var dright=document.createElement('div'); dright.className='d-right';
     var s=document.createElement('span'); s.className='pill';
     if(d.stop===5){ s.classList.add('delivered'); s.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px"><polyline points="20 6 9 17 4 12"/></svg>Delivered'; }
@@ -473,6 +473,28 @@ function renderAdmin() {
     body.appendChild(fr);
     body.appendChild(ta);
  
+    // Express toggle
+    var exRow=document.createElement('div'); exRow.style.cssText='display:flex;gap:10px;margin-top:10px;margin-bottom:4px';
+    var exLabel=document.createElement('div'); exLabel.style.cssText='font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;display:flex;align-items:center;gap:8px';
+    exLabel.textContent='Delivery Type';
+    var exBtnExpress=document.createElement('button');
+    var exBtnNormal=document.createElement('button');
+    function styleExpress(active){
+      exBtnExpress.style.cssText='flex:1;padding:7px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid '+(active?'#F97316':'#E2E8F0')+';background:'+(active?'#FFF7F2':'#fff')+';color:'+(active?'#F97316':'#94A3B8')+';font-family:Inter,sans-serif';
+      exBtnNormal.style.cssText='flex:1;padding:7px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid '+(!active?'#1B4FE8':'#E2E8F0')+';background:'+(!active?'#EEF2FF':'#fff')+';color:'+(!active?'#1B4FE8':'#94A3B8')+';font-family:Inter,sans-serif';
+    }
+    exBtnExpress.textContent='⚡ Express';
+    exBtnNormal.textContent='📦 Standard';
+    if(!d.express) d.express=false;
+    styleExpress(d.express);
+    (function(idx){
+      exBtnExpress.addEventListener('click',function(){ deliveries[idx].express=true; markChanged(); renderAdmin(); });
+      exBtnNormal.addEventListener('click',function(){ deliveries[idx].express=false; markChanged(); renderAdmin(); });
+    })(i);
+    exRow.appendChild(exBtnExpress); exRow.appendChild(exBtnNormal);
+    body.appendChild(exLabel);
+    body.appendChild(exRow);
+ 
     // Status / stop nav
     var sr=document.createElement('div'); sr.className='status-row';
     var sl=document.createElement('div'); sl.className='status-lbl'; sl.textContent='Status Update';
@@ -509,7 +531,7 @@ function renderAdmin() {
  
 // ── MODAL ─────────────────────────────────────────────────────────────
 document.getElementById('btn-open-modal').addEventListener('click', function(){
-  document.getElementById('new-id').value='SWIFT-'+pkgCounter;
+  document.getElementById('new-id').value='PACKAGE-'+pkgCounter;
   document.getElementById('new-desc').value='';
   document.getElementById('new-stop').value='1';
   document.getElementById('modal-err').style.display='none';
@@ -534,7 +556,7 @@ document.getElementById('btn-modal-create').addEventListener('click', function()
 // ── TRACK ─────────────────────────────────────────────────────────────
 function trackPkg(){
   var raw=document.getElementById('track-input').value.trim().toUpperCase();
-  var query=raw.startsWith('SWIFT-')?raw:'SWIFT-'+raw;
+  var query=raw.startsWith('PACKAGE-')?raw:'PACKAGE-'+raw;
   var d=deliveries.find(function(x){ return x.id===query||x.id===raw; });
   var rw=document.getElementById('result-wrap');
   var ri=document.getElementById('result-inner');
@@ -549,28 +571,32 @@ function trackPkg(){
   });
   var pillStr=d.stop===5
     ?'<span class="pill delivered"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px"><polyline points="20 6 9 17 4 12"/></svg>Delivered</span>'
-    :'<span class="pill transit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>In Transit</span>';
-  ri.innerHTML='<div class="r-card"><div class="r-header"><div class="r-id-row"><div class="r-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1B4FE8" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg></div><div><div class="r-tracking">'+d.id+'</div><div class="r-subtitle">'+(d.stop===5?'Your package has been delivered!':'Your package is on its way to you.')+'</div></div></div>'+pillStr+'</div><div class="r-body"><div class="r-section-title"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>Description of Goods</div><div class="desc-box">'+d.desc+'</div><div class="meta-row"><div class="meta-card"><div class="meta-card-icon blue"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="meta-label">Shipped Date</div><div class="meta-val">'+fmtShort(d.shipped)+'</div></div></div><div class="meta-card"><div class="meta-card-icon orange"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div><div class="meta-label">Current Location</div><div class="meta-val">'+STEPS[d.stop-1].loc+'</div></div></div></div><div class="r-section-title"><svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Delivery Journey</div><div class="journey-box">'+jHTML+'</div><div class="current-banner"><div class="banner-icon"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div><div><div class="banner-label">Current Stop</div><div class="banner-val">Stop '+d.stop+': '+STEPS[d.stop-1].name+'</div></div></div></div></div>';
+    :'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><span class="pill transit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>In Transit</span><span style="font-size:11px;color:#94A3B8;font-weight:500">⏱ Time: 45 mins</span></div>';
+  ri.innerHTML='<div class="r-card"><div class="r-header"><div class="r-id-row"><div class="r-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1B4FE8" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg></div><div><div class="r-tracking">'+d.id+'</div><div class="r-subtitle">'+(d.stop===5?'Your package has been delivered!':'Your package is on its way to you.')+'</div></div></div>'+pillStr+'</div><div class="r-body"><div class="r-section-title"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>Description of Goods</div><div class="desc-box">'+d.desc+'</div><div class="meta-row">'+(d.express
+    ?'<div class="meta-card"><div class="meta-card-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div><div class="meta-label">Delivery Type</div><div class="meta-val">&#9889; Express</div></div></div>'
+    :'<div class="meta-card"><div class="meta-card-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="#1B4FE8" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><div><div class="meta-label">Delivery Type</div><div class="meta-val">&#128230; Standard</div></div></div>'
+)+'<div class="meta-card"><div class="meta-card-icon orange"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div><div class="meta-label">Current Location</div><div class="meta-val">'+STEPS[d.stop-1].loc+'</div></div></div></div><div class="r-section-title"><svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Delivery Journey</div><div class="journey-box">'+jHTML+'</div><div class="current-banner"><div class="banner-icon"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div><div><div class="banner-label">Current Stop</div><div class="banner-val">Stop '+d.stop+': '+STEPS[d.stop-1].name+'</div></div></div></div></div>';
 }
 document.getElementById('btn-track').addEventListener('click', trackPkg);
 document.getElementById('track-input').addEventListener('keydown', function(e){ if(e.key==='Enter') trackPkg(); });
  
 // ── SAVE BAR BUTTONS ──────────────────────────────────────────────────
+function takeSnapshot(){
+  savedSnapshot = deliveries.map(function(d){
+    return { id:d.id, desc:d.desc, stop:d.stop, express:!!d.express, shipped:d.shipped, editing:false };
+  });
+}
+ 
 document.getElementById('btn-save-all').addEventListener('click', function(){
   pendingChanges = {};
-  savedSnapshot = deliveries.map(function(d){ return {id:d.id, desc:d.desc, stop:d.stop}; });
+  takeSnapshot();
   hideSaveBar();
   showToast();
 });
  
 document.getElementById('btn-discard').addEventListener('click', function(){
-  // Revert to last saved snapshot
-  deliveries = deliveries.filter(function(d){
-    return savedSnapshot.find(function(s){ return s.id===d.id; });
-  }).map(function(d){
-    var snap = savedSnapshot.find(function(s){ return s.id===d.id; });
-    if(snap){ d.desc=snap.desc; d.stop=snap.stop; }
-    return d;
+  deliveries = savedSnapshot.map(function(s){
+    return { id:s.id, desc:s.desc, stop:s.stop, express:s.express, shipped:s.shipped, editing:false, updated:new Date() };
   });
   pendingChanges = {};
   hideSaveBar();
@@ -582,4 +608,3 @@ showPage('track');
 </script>
 </body>
 </html>
- 
