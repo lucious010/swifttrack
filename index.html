@@ -319,10 +319,10 @@ var PIN   = '<svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d
 function bd(n){ var d=new Date('2026-04-13T13:13:17'); d.setDate(d.getDate()-n); return d; }
  
 var deliveries = [
-  { id:'PACKAGE-9901', desc:'Coachella Tickets', stop:3, shipped:bd(3), updated:new Date() },
-  { id:'PACKAGE-9902', desc:'Coachella Tickets',                       stop:5, shipped:bd(4), updated:new Date(Date.now()-86400000) },
-  { id:'PACKAGE-9903', desc:'Coachella Tickets',                           stop:2, shipped:bd(2), updated:new Date() },
-  { id:'PACKAGE-9904', desc:'Coachella Tickets',     stop:2, shipped:bd(1), updated:new Date() }
+  { id:'PACKAGE-9901', desc:'Coachella Tickets', stop:3, express:true, shipped:bd(3), updated:new Date() },
+  { id:'PACKAGE-9902', desc:'Coachella Tickets', stop:5, express:true, shipped:bd(4), updated:new Date(Date.now()-86400000) },
+  { id:'PACKAGE-9903', desc:'Coachella Tickets', stop:2, express:true, shipped:bd(2), updated:new Date() },
+  { id:'PACKAGE-9904', desc:'Coachella Tickets', stop:2, express:true, shipped:bd(1), updated:new Date() }
 ];
  
 // ── CHANGE TRACKING ───────────────────────────────────────────────────
@@ -485,7 +485,7 @@ function renderAdmin() {
     }
     exBtnExpress.textContent='⚡ Express';
     exBtnNormal.textContent='📦 Standard';
-    if(!d.express) d.express=false;
+    if(d.express===undefined) d.express=true;
     styleExpress(d.express);
     (function(idx){
       exBtnExpress.addEventListener('click',function(){ deliveries[idx].express=true; markChanged(); renderAdmin(); });
@@ -608,3 +608,4 @@ showPage('track');
 </script>
 </body>
 </html>
+ 
