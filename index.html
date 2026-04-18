@@ -325,29 +325,55 @@ var DEFAULT_DELIVERIES = [
   { id:'PACKAGE-9904', desc:'Coachella Tickets', stop:2, express:true, shipped:bd(1), updated:new Date() }
 ];
  
-function loadDeliveries() {
-  try {
-    var saved = localStorage.getItem('swifttrack_deliveries');
-    if (saved) {
-      var parsed = JSON.parse(saved);
-      // Restore Date objects
-      return parsed.map(function(d) {
-        d.shipped = new Date(d.shipped);
-        d.updated = new Date(d.updated);
-        return d;
-      });
-    }
-  } catch(e) {}
-  return DEFAULT_DELIVERIES;
+// ── JSONBIN CONFIG ────────────────────────────────────────────────────
+// Free at jsonbin.io — no credit card needed
+var JSONBIN_BIN_ID  = '69e353ce856a68218948ae4a';
+var JSONBIN_API_KEY = '$2a$10$8iI.qhdcOIRZYOpgStmPPuiWMz/NPkHyXC.6VzouJSQNdcV5xPalW';
+var JSONBIN_URL     = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
+ 
+function parseDeliveries(raw) {
+  return raw.map(function(d) {
+    d.shipped = new Date(d.shipped);
+    d.updated = new Date(d.updated);
+    d.editing = false;
+    return d;
+  });
 }
  
 function saveDeliveries() {
-  try {
-    localStorage.setItem('swifttrack_deliveries', JSON.stringify(deliveries));
-  } catch(e) {}
+  var data = deliveries.map(function(d) {
+    return { id:d.id, desc:d.desc, stop:d.stop, express:!!d.express, shipped:d.shipped.toISOString(), updated:d.updated.toISOString() };
+  });
+  fetch(JSONBIN_URL, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
+    body: JSON.stringify({ deliveries: data })
+  }).catch(function(e){ console.error('Save failed:', e); });
+  // Also keep local backup
+  try { localStorage.setItem('swifttrack_deliveries', JSON.stringify(data)); } catch(e) {}
 }
  
-var deliveries = loadDeliveries();
+function loadDeliveries(callback) {
+  fetch(JSONBIN_URL + '/latest', {
+    headers: { 'X-Master-Key': JSONBIN_API_KEY }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.record && data.record.deliveries && data.record.deliveries.length > 0) {
+      callback(parseDeliveries(data.record.deliveries));
+    } else { callback(null); }
+  })
+  .catch(function() {
+    // Fallback to localStorage
+    try {
+      var saved = localStorage.getItem('swifttrack_deliveries');
+      if (saved) { callback(parseDeliveries(JSON.parse(saved))); return; }
+    } catch(e) {}
+    callback(null);
+  });
+}
+ 
+var deliveries = DEFAULT_DELIVERIES;
  
 // ── CHANGE TRACKING ───────────────────────────────────────────────────
 var pendingChanges = {};
@@ -629,7 +655,16 @@ document.getElementById('btn-discard').addEventListener('click', function(){
   renderAdmin();
 });
  
-showPage('track');
+// Load deliveries from JSONBin before showing the page
+loadDeliveries(function(loaded) {
+  if (loaded) {
+    deliveries = loaded;
+    savedSnapshot = deliveries.map(function(d) {
+      return { id:d.id, desc:d.desc, stop:d.stop, express:!!d.express, shipped:d.shipped, editing:false };
+    });
+  }
+  showPage('track');
+});
 }); // end DOMContentLoaded
 </script>
 </body>
