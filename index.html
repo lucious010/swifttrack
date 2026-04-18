@@ -318,12 +318,36 @@ var PIN   = '<svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d
  
 function bd(n){ var d=new Date('2026-04-13T13:13:17'); d.setDate(d.getDate()-n); return d; }
  
-var deliveries = [
+var DEFAULT_DELIVERIES = [
   { id:'PACKAGE-9901', desc:'Coachella Tickets', stop:3, express:true, shipped:bd(3), updated:new Date() },
   { id:'PACKAGE-9902', desc:'Coachella Tickets', stop:5, express:true, shipped:bd(4), updated:new Date(Date.now()-86400000) },
   { id:'PACKAGE-9903', desc:'Coachella Tickets', stop:2, express:true, shipped:bd(2), updated:new Date() },
   { id:'PACKAGE-9904', desc:'Coachella Tickets', stop:2, express:true, shipped:bd(1), updated:new Date() }
 ];
+ 
+function loadDeliveries() {
+  try {
+    var saved = localStorage.getItem('swifttrack_deliveries');
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      // Restore Date objects
+      return parsed.map(function(d) {
+        d.shipped = new Date(d.shipped);
+        d.updated = new Date(d.updated);
+        return d;
+      });
+    }
+  } catch(e) {}
+  return DEFAULT_DELIVERIES;
+}
+ 
+function saveDeliveries() {
+  try {
+    localStorage.setItem('swifttrack_deliveries', JSON.stringify(deliveries));
+  } catch(e) {}
+}
+ 
+var deliveries = loadDeliveries();
  
 // ── CHANGE TRACKING ───────────────────────────────────────────────────
 var pendingChanges = {};
@@ -590,6 +614,7 @@ function takeSnapshot(){
 document.getElementById('btn-save-all').addEventListener('click', function(){
   pendingChanges = {};
   takeSnapshot();
+  saveDeliveries();
   hideSaveBar();
   showToast();
 });
@@ -599,6 +624,7 @@ document.getElementById('btn-discard').addEventListener('click', function(){
     return { id:s.id, desc:s.desc, stop:s.stop, express:s.express, shipped:s.shipped, editing:false, updated:new Date() };
   });
   pendingChanges = {};
+  saveDeliveries();
   hideSaveBar();
   renderAdmin();
 });
@@ -608,4 +634,3 @@ showPage('track');
 </script>
 </body>
 </html>
- 
